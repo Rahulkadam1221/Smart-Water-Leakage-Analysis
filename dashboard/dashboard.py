@@ -14,8 +14,16 @@ from plotly.subplots import make_subplots
 import warnings
 import os
 import joblib
+import base64
+import textwrap
 
 warnings.filterwarnings("ignore")
+
+def get_bg_base64(image_path: str) -> str:
+    if image_path and os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    return ""
 
 # ──────────────────────────────────────────────
 # PAGE CONFIG
@@ -28,112 +36,580 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────
-# CUSTOM CSS — professional dark-blue theme
+# CUSTOM CSS — Premium White / Light Theme
 # ──────────────────────────────────────────────
 st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
     /* ── Hide Streamlit Branding ── */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+    [data-testid="stDecoration"] {display: none;}
+
+    /* ── Animations ── */
+    @keyframes shimmer {
+        0%   { background-position: -200% 0; }
+        100% { background-position:  200% 0; }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.45; }
+    }
+    @keyframes headerGlow {
+        0%, 100% { box-shadow: 0 4px 30px rgba(37,99,235,0.08), 0 1px 0 rgba(255,255,255,0.9) inset; }
+        50%       { box-shadow: 0 4px 40px rgba(37,99,235,0.15), 0 1px 0 rgba(255,255,255,0.9) inset; }
+    }
 
     /* ── Global ── */
-    html, body, [data-testid="stAppViewContainer"] {
-        background-color: #0a0f1e;
-        color: #e0e8f8;
-        font-family: 'Segoe UI', sans-serif;
+    html, body, [data-testid="stAppViewContainer"], .stApp {
+        background: #f0f4f9 !important;
+        color: #1e293b !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif !important;
     }
-    [data-testid="stSidebar"] {
-        background-color: #0d1526;
-        border-right: 1px solid #1e3a5f;
+    [data-testid="stMain"], .main {
+        background: #f0f4f9 !important;
     }
-    [data-testid="stSidebar"] * { color: #c8d8f0 !important; }
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 2.5rem !important;
+        max-width: 1480px !important;
+        animation: fadeInUp 0.4s ease;
+    }
 
-    /* ── Section headers ── */
-    .section-header {
-        font-size: 1.4rem;
+    /* ── Premium White Sidebar ── */
+    [data-testid="stSidebar"] {
+        background: #ffffff !important;
+        border-right: 1px solid #e2e8f0 !important;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.06) !important;
+    }
+    [data-testid="stSidebar"]::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #0ea5e9, #7c3aed, #2563eb);
+        background-size: 200% 100%;
+        animation: shimmer 4s linear infinite;
+    }
+    [data-testid="stSidebar"] * {
+        color: #374151 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    [data-testid="stSidebar"] .stRadio label {
+        color: #6b7280 !important;
+        font-size: 0.86rem !important;
+        padding: 7px 10px !important;
+        border-radius: 8px !important;
+        transition: all 0.18s ease !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+    }
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background: #eff6ff !important;
+        color: #2563eb !important;
+    }
+    [data-testid="stSidebar"] [aria-checked="true"] + label,
+    [data-testid="stSidebar"] .stRadio [aria-checked="true"] ~ label {
+        color: #2563eb !important;
+        background: #dbeafe !important;
+        font-weight: 600 !important;
+    }
+
+    /* ── Flipkart / Amazon Filter Styling ── */
+    .fk-filter-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #212121;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        font-family: 'Inter', Roboto, sans-serif;
+        padding-top: 4px;
+    }
+    .fk-section-header {
+        font-size: 11.5px;
         font-weight: 700;
-        color: #4fc3f7;
-        border-left: 4px solid #0288d1;
-        padding-left: 12px;
-        margin: 1.5rem 0 0.8rem 0;
+        text-transform: uppercase;
+        color: #212121;
+        letter-spacing: 0.5px;
+        margin-top: 14px;
+        margin-bottom: 6px;
+        font-family: 'Inter', Roboto, sans-serif;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .fk-divider {
+        height: 1px;
+        background: #f0f0f0;
+        margin: 12px 0 8px 0;
+    }
+    
+    /* Checkbox Styling like Amazon & Flipkart */
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] {
+        padding: 3px 4px !important;
+        margin-bottom: 2px !important;
+        border-radius: 4px !important;
+        transition: background 0.12s ease !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stCheckbox"]:hover {
+        background: #f8fafc !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] label {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
+        font-size: 0.83rem !important;
+        color: #212121 !important;
+        cursor: pointer !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] [data-baseweb="checkbox"] span {
+        border-radius: 3px !important;
+        border: 1.5px solid #c2c2c2 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] [aria-checked="true"] {
+        background-color: #2874f0 !important;
+        border-color: #2874f0 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] code {
+        background: #f1f5f9 !important;
+        color: #64748b !important;
+        font-size: 0.72rem !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 1px 5px !important;
+        font-weight: 500 !important;
+        border-radius: 4px !important;
+        margin-left: 4px !important;
+    }
+    
+    /* CLEAR ALL Link styling (Flipkart Blue) */
+    [data-testid="stSidebar"] [data-testid="stColumn"]:last-child button {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #2874f0 !important;
+        font-weight: 800 !important;
+        font-size: 0.72rem !important;
+        text-transform: uppercase !important;
+        padding: 0 !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        cursor: pointer !important;
+        letter-spacing: 0.6px !important;
+        float: right !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stColumn"]:last-child button:hover {
+        color: #1259c7 !important;
+        text-decoration: underline !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* ── Reference UI Neumorphic & Glassmorphic Cards ── */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.84) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.95) !important;
+        border-radius: 22px !important;
+        box-shadow: 0 10px 30px rgba(99, 102, 241, 0.07), 0 2px 6px rgba(0, 0, 0, 0.02) !important;
+        padding: 22px 24px;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .glass-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 16px 36px rgba(99, 102, 241, 0.12), 0 4px 10px rgba(0, 0, 0, 0.03) !important;
+    }
+    .ref-big-stat {
+        font-size: 2.6rem;
+        font-weight: 900;
+        color: #1e1b4b;
+        letter-spacing: -1.2px;
+        line-height: 1.1;
+        margin: 6px 0 14px 0;
+    }
+    .ref-seg-bar {
+        height: 9px;
+        border-radius: 6px;
+        display: flex;
+        overflow: hidden;
+        gap: 3px;
+        background: #e2e8f0;
+        margin: 10px 0 14px 0;
+    }
+    .ref-seg-bar > div {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.4s ease;
+    }
+    .ref-legend-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 0;
+        font-size: 0.82rem;
+        color: #475569;
+        font-weight: 500;
+        border-bottom: 1px dashed rgba(226, 232, 240, 0.6);
+    }
+    .ref-legend-row:last-child {
+        border-bottom: none;
+    }
+    .ref-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+    .ref-pill-card {
+        background: rgba(255, 255, 255, 0.86);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid rgba(255, 255, 255, 0.95);
+        border-radius: 18px;
+        padding: 13px 18px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 4px 18px rgba(99, 102, 241, 0.06);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .ref-pill-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 26px rgba(99, 102, 241, 0.12);
+    }
+    .ref-icon-box {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+        color: #ffffff;
+    }
+    .ref-icon-purple {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+    }
+    .ref-icon-cyan {
+        background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+        box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+    }
+    .ref-icon-amber {
+        background: linear-gradient(135deg, #f59e0b 0%, #f43f5e 100%);
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+    }
+
+    /* ── Section Headers ── */
+    .section-header {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.3px;
+        padding: 10px 16px;
+        margin: 1.5rem 0 0.5rem 0;
+        background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+        border-left: 3px solid #2563eb;
+        border-radius: 0 10px 10px 0;
+        position: relative;
     }
     .sub-header {
-        font-size: 0.95rem;
-        color: #90a4c4;
-        margin-bottom: 1rem;
+        font-size: 0.88rem;
+        color: #94a3b8;
+        margin-bottom: 1.2rem;
+        margin-top: -0.2rem;
+        font-weight: 400;
     }
 
-    /* ── Metric cards ── */
+    /* ── Premium Light Metric Cards ── */
     .metric-card {
-        background: linear-gradient(135deg, #0d1f3c 0%, #112240 100%);
-        border: 1px solid #1e3a5f;
-        border-radius: 14px;
-        padding: 20px 22px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 22px 18px 18px;
         text-align: center;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-        transition: transform 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+        transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease, border-color 0.2s ease;
+        position: relative;
+        overflow: hidden;
     }
-    .metric-card:hover { transform: translateY(-3px); }
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: #2563eb;
+        border-radius: 16px 16px 0 0;
+    }
+    .metric-card:hover {
+        transform: translateY(-4px) scale(1.01);
+        box-shadow: 0 8px 30px rgba(37,99,235,0.12);
+        border-color: #bfdbfe;
+    }
     .metric-card .label {
-        font-size: 0.78rem;
+        font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 1.2px;
-        color: #7090b0;
-        margin-bottom: 8px;
+        color: #94a3b8;
+        margin-bottom: 10px;
+        font-weight: 700;
     }
     .metric-card .value {
-        font-size: 2.1rem;
+        font-size: 1.95rem;
         font-weight: 800;
-        color: #4fc3f7;
+        color: #1e40af;
         line-height: 1.1;
+        letter-spacing: -1px;
     }
     .metric-card .delta {
-        font-size: 0.82rem;
-        color: #81c784;
-        margin-top: 6px;
+        font-size: 0.76rem;
+        color: #64748b;
+        margin-top: 7px;
+        font-weight: 500;
     }
-    .metric-card.danger .value { color: #ef5350; }
-    .metric-card.warning .value { color: #ffa726; }
-    .metric-card.success .value { color: #66bb6a; }
+    .metric-card.danger::before { background: #ef4444; }
+    .metric-card.danger .value  { color: #dc2626; }
+    .metric-card.warning::before{ background: #f59e0b; }
+    .metric-card.warning .value { color: #d97706; }
+    .metric-card.success::before{ background: #10b981; }
+    .metric-card.success .value { color: #059669; }
+    .metric-card.danger:hover   { box-shadow: 0 8px 30px rgba(239,68,68,0.12); border-color: #fecaca; }
+    .metric-card.warning:hover  { box-shadow: 0 8px 30px rgba(245,158,11,0.12); border-color: #fde68a; }
+    .metric-card.success:hover  { box-shadow: 0 8px 30px rgba(16,185,129,0.12); border-color: #a7f3d0; }
 
-    /* ── Insight boxes ── */
+    /* ── Insight Boxes ── */
     .insight-box {
-        background: linear-gradient(135deg, #0d2137 0%, #0f2a47 100%);
-        border-left: 4px solid #4fc3f7;
-        border-radius: 8px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-        font-size: 0.93rem;
-        color: #c8ddf2;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #2563eb;
+        border-radius: 10px;
+        padding: 13px 16px 13px 18px;
+        margin-bottom: 10px;
+        font-size: 0.89rem;
+        color: #334155;
+        line-height: 1.65;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        transition: box-shadow 0.2s ease, border-left-color 0.2s ease;
     }
-    .insight-box.warning { border-left-color: #ffa726; }
-    .insight-box.danger  { border-left-color: #ef5350; }
-    .insight-box.success { border-left-color: #66bb6a; }
+    .insight-box:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
+    .insight-box.warning {
+        border-left-color: #f59e0b;
+        background: #fffbeb;
+        border-color: #fde68a;
+    }
+    .insight-box.danger {
+        border-left-color: #ef4444;
+        background: #fef2f2;
+        border-color: #fecaca;
+    }
+    .insight-box.success {
+        border-left-color: #10b981;
+        background: #f0fdf4;
+        border-color: #a7f3d0;
+    }
 
-    /* ── Alert badge ── */
+    /* ── Alert Badges ── */
     .badge {
         display: inline-block;
-        padding: 3px 10px;
+        padding: 3px 11px;
         border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
     }
-    .badge-critical { background:#b71c1c; color:#fff; }
-    .badge-high     { background:#e65100; color:#fff; }
-    .badge-moderate { background:#f9a825; color:#000; }
-    .badge-low      { background:#1b5e20; color:#fff; }
+    .badge-critical { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .badge-high     { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .badge-moderate { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .badge-low      { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
 
     /* ── Divider ── */
-    hr { border-color: #1e3a5f; }
+    hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0; }
 
-    /* ── Plotly chart containers ── */
+    /* ── Plotly Chart Containers ── */
     [data-testid="stPlotlyChart"] {
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.05);
+        transition: box-shadow 0.25s ease, transform 0.25s ease;
+    }
+    [data-testid="stPlotlyChart"]:hover {
+        box-shadow: 0 4px 20px rgba(37,99,235,0.1);
+        transform: translateY(-2px);
+    }
+
+    /* ── Input Widgets ── */
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div {
+        background: #ffffff !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 10px !important;
+        color: #374151 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.88rem !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+    }
+    .stSelectbox > div > div:hover,
+    .stMultiSelect > div > div:hover {
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.08) !important;
+    }
+    .stTextInput > div > div > input {
+        background: #ffffff !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 10px !important;
+        color: #374151 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.88rem !important;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.1) !important;
+    }
+    .stTextInput > div > div > input::placeholder { color: #9ca3af !important; }
+
+    /* ── Slider ── */
+    [data-testid="stSlider"] [role="slider"] {
+        background: #2563eb !important;
+        border-color: #2563eb !important;
+    }
+    [data-testid="stSlider"] [data-testid="stSliderTrackFill"] {
+        background: #2563eb !important;
+    }
+
+    /* ── Tabs ── */
+    .stTabs [data-baseweb="tab-list"] {
+        background: #f1f5f9 !important;
+        border-radius: 12px !important;
+        padding: 4px !important;
+        gap: 4px !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px !important;
+        color: #64748b !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 500 !important;
+        font-size: 0.87rem !important;
+        transition: all 0.2s ease !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background: #ffffff !important;
+        color: #2563eb !important;
+        font-weight: 600 !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08) !important;
+    }
+
+    /* ── Dataframe ── */
+    [data-testid="stDataFrame"] {
         border-radius: 12px;
         overflow: hidden;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    /* ── Download Button ── */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        border: none !important;
+        border-radius: 10px !important;
+        color: #ffffff !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.2px !important;
+        padding: 8px 18px !important;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.3) !important;
+        transition: all 0.2s ease !important;
+    }
+    .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+        box-shadow: 0 6px 18px rgba(37,99,235,0.4) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* ── Alerts ── */
+    .stAlert {
+        border-radius: 12px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.88rem !important;
+    }
+
+    /* ── Expander ── */
+    .streamlit-expanderHeader {
+        background: #f8fafc !important;
+        border-radius: 10px !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #374151 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        transition: all 0.18s ease !important;
+    }
+    .streamlit-expanderHeader:hover {
+        border-color: #bfdbfe !important;
+        background: #eff6ff !important;
+    }
+    .streamlit-expanderContent {
+        border: 1px solid #e2e8f0 !important;
+        border-top: none !important;
+        border-radius: 0 0 10px 10px !important;
+        background: #ffffff !important;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ── Multiselect Tags ── */
+    [data-baseweb="tag"] {
+        background: #dbeafe !important;
+        border: 1px solid #93c5fd !important;
+        border-radius: 6px !important;
+        color: #1e40af !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.78rem !important;
+    }
+
+    /* ── Code ── */
+    code {
+        background: #f1f5f9 !important;
+        color: #2563eb !important;
+        border-radius: 5px !important;
+        padding: 2px 7px !important;
+        font-size: 0.84em !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    /* ── Radio group labels in main content ── */
+    .stRadio > label {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.88rem !important;
+        color: #374151 !important;
+        font-weight: 500 !important;
+    }
+
+    /* ── General headings ── */
+    h1, h2, h3, h4 {
+        font-family: 'Inter', sans-serif !important;
+        color: #0f172a !important;
+    }
+    p, span, li, td, th {
+        font-family: 'Inter', sans-serif !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ──────────────────────────────────────────────
 # DATA LOADING & CACHING
@@ -173,90 +649,326 @@ def load_data() -> pd.DataFrame:
 # PLOTLY THEME DEFAULTS
 # ──────────────────────────────────────────────
 CHART_THEME = dict(
-    paper_bgcolor="#0d1526",
-    plot_bgcolor="#0d1526",
-    font_color="#c8d8f0",
-    
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+    font_color="#334155",
+    font_family="Inter, Segoe UI, sans-serif",
 )
-PALETTE = px.colors.sequential.Blues_r
+PALETTE = px.colors.sequential.Blues
 COLOR_MAP_RISK = {
-    "Low Risk":      "#66bb6a",
-    "Moderate Risk": "#ffa726",
-    "High Risk":     "#ef5350",
-    "Critical":      "#b71c1c",
+    "Low Risk":      "#10b981",
+    "Moderate Risk": "#f59e0b",
+    "High Risk":     "#ef4444",
+    "Critical":      "#991b1b",
 }
 COLOR_MAP_SEV = {
-    "Normal":        "#4fc3f7",
-    "Low Risk":      "#66bb6a",
-    "Moderate Risk": "#ffa726",
-    "High Risk":     "#ef5350",
-    "Critical Leak": "#b71c1c",
+    "Normal":        "#3b82f6",
+    "Low Risk":      "#10b981",
+    "Moderate Risk": "#f59e0b",
+    "High Risk":     "#ef4444",
+    "Critical Leak": "#991b1b",
 }
 
 
 def apply_theme(fig: go.Figure, title: str = "", height: int = 400) -> go.Figure:
-    """Apply consistent dark theme to every Plotly figure."""
+    """Apply consistent premium white/light theme to every Plotly figure."""
     fig.update_layout(
-        title=dict(text=title, font=dict(size=15, color="#4fc3f7"), x=0.02),
+        title=dict(
+            text=title,
+            font=dict(size=14, color="#1e40af", family="Inter, sans-serif", weight=600),
+            x=0.02, y=0.97,
+        ),
         height=height,
-        margin=dict(l=40, r=20, t=50, b=40),
+        margin=dict(l=40, r=20, t=52, b=40),
         legend=dict(
-            bgcolor="rgba(13,21,38,0.8)",
-            bordercolor="#1e3a5f",
+            bgcolor="rgba(255,255,255,0.95)",
+            bordercolor="#e2e8f0",
             borderwidth=1,
-            font=dict(color="#c8d8f0"),
+            font=dict(color="#475569", size=11, family="Inter, sans-serif"),
         ),
         **CHART_THEME,
     )
-    fig.update_xaxes(gridcolor="#1a2f4a", zerolinecolor="#1a2f4a", tickfont_color="#90a4c4")
-    fig.update_yaxes(gridcolor="#1a2f4a", zerolinecolor="#1a2f4a", tickfont_color="#90a4c4")
+    fig.update_xaxes(
+        gridcolor="#f1f5f9",
+        zerolinecolor="#e2e8f0",
+        tickfont=dict(color="#94a3b8", size=10, family="Inter, sans-serif"),
+        showline=False,
+        linecolor="#e2e8f0",
+    )
+    fig.update_yaxes(
+        gridcolor="#f1f5f9",
+        zerolinecolor="#e2e8f0",
+        tickfont=dict(color="#94a3b8", size=10, family="Inter, sans-serif"),
+        showline=False,
+        linecolor="#e2e8f0",
+    )
     return fig
+
 
 
 # ──────────────────────────────────────────────
 # SIDEBAR — global filters
 # ──────────────────────────────────────────────
 def render_sidebar(df: pd.DataFrame):
-    st.sidebar.markdown("## 💧 Smart Water Monitor")
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🔍 Global Filters")
+    # ── Clean White Sidebar Branding with Reference UI Logo ──
+    st.sidebar.markdown("""
+    <div style="padding: 10px 4px 8px 4px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+            <div style="width:36px; height:36px; border-radius:50%; background:conic-gradient(from 180deg at 50% 50%, #7c3aed 0deg, #ec4899 180deg, #6366f1 360deg); padding:5px; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35); flex-shrink:0;">
+                <div style="width:100%; height:100%; background:#ffffff; border-radius:50%;"></div>
+            </div>
+            <div>
+                <div style="font-family:'Inter',sans-serif; font-size:1.02rem; font-weight:800;
+                            color:#1e1b4b; letter-spacing:-0.4px; line-height:1.2;">Water Monitor</div>
+                <div style="font-family:'Inter',sans-serif; font-size:0.65rem; color:#8b5cf6; font-weight:700;
+                            text-transform:uppercase; letter-spacing:1px; margin-top:1px;">Smart Infrastructure</div>
+            </div>
+        </div>
+    </div>
+    <div class="fk-divider"></div>
+    """, unsafe_allow_html=True)
 
-    # Risk level
-    risk_options = sorted(df["risk_level"].unique(), key=lambda x: {"Low Risk":0,"Moderate Risk":1,"High Risk":2,"Critical":3}.get(x, 99))
-    sel_risk = st.sidebar.multiselect("Risk Level", risk_options, default=risk_options)
+    # ── Wallpaper / Background Theme Selector ──
+    st.sidebar.markdown('<div class="fk-section-header"><span>🖼️ Wallpaper Theme</span></div>', unsafe_allow_html=True)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    bg_options = {
+        "Option 1: Smart Water Grid Globe": os.path.join(base_dir, "assets", "bg_option1_globe.jpg"),
+        "Option 2: Smart City Water Network": os.path.join(base_dir, "assets", "bg_option2_city_grid.jpg"),
+        "Option 3: Crystalline Water Droplet Core": os.path.join(base_dir, "assets", "bg_option3_water_drop.jpg"),
+        "Option 4: Clean Glass Gradient": "",
+    }
+    if "selected_bg" not in st.session_state:
+        st.session_state["selected_bg"] = "Option 1: Smart Water Grid Globe"
 
-    # Leak severity
-    sev_options = sorted(df["leak_severity"].unique(), key=lambda x: {"Normal":0,"Low Risk":1,"Moderate Risk":2,"High Risk":3,"Critical Leak":4}.get(x, 99))
-    sel_sev = st.sidebar.multiselect("Leak Severity", sev_options, default=sev_options)
+    selected_bg = st.sidebar.selectbox(
+        "Wallpaper Theme",
+        list(bg_options.keys()),
+        index=list(bg_options.keys()).index(st.session_state["selected_bg"]) if st.session_state["selected_bg"] in bg_options else 0,
+        key="selected_bg",
+        label_visibility="collapsed"
+    )
+    st.sidebar.markdown('<div class="fk-divider"></div>', unsafe_allow_html=True)
 
-    # Hour range
+    # Dynamically inject background image style
+    bg_path = bg_options.get(selected_bg, "")
+    if bg_path and os.path.exists(bg_path):
+        b64_bg = get_bg_base64(bg_path)
+        st.markdown(f"""
+        <style>
+            [data-testid="stAppViewContainer"] {{
+                background: url("data:image/jpeg;base64,{b64_bg}") no-repeat 56% center fixed !important;
+                background-size: cover !important;
+            }}
+            [data-testid="stMain"], .main {{
+                background: transparent !important;
+            }}
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <style>
+            [data-testid="stAppViewContainer"] {
+                background: radial-gradient(circle at 60% 30%, #e0e7ff 0%, #f1f5f9 60%, #e2e8f0 100%) fixed !important;
+            }
+            [data-testid="stMain"], .main {
+                background: transparent !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+    # ── Flipkart / Amazon Filter Header with CLEAR ALL ──
+    col_t, col_b = st.sidebar.columns([3, 2])
+    with col_t:
+        st.markdown('<div class="fk-filter-title">Filters</div>', unsafe_allow_html=True)
+    with col_b:
+        clear_clicked = st.button("CLEAR ALL", key="fk_clear_all", help="Reset all filters to default")
+
+    # Options definition
+    risk_options = ["Critical", "High Risk", "Moderate Risk", "Low Risk"]
+    sev_options = ["Critical Leak", "High Risk", "Moderate Risk", "Low Risk", "Normal"]
     h_min, h_max = int(df["hour"].min()), int(df["hour"].max())
-    sel_hours = st.sidebar.slider("Hour Range (0–23)", h_min, h_max, (h_min, h_max), help="Filter records by time of day. Note: Continuous usage between hours 0 - 5 is a strong indicator of a persistent leak.")
+    hh_options = ["All Households (200)"] + sorted(df["household_id"].unique().tolist())
 
-    # Spike ratio threshold
-    spike_thresh = st.sidebar.slider("Min Spike Ratio", 0.0, float(df["spike_ratio"].max()), 0.0, step=0.1, help="Show only records where usage was X times higher than the 7-day rolling average. Target > 2.0 to find severe anomalies.")
+    # If CLEAR ALL clicked, reset state
+    if clear_clicked:
+        for opt in risk_options:
+            st.session_state[f"fk_risk_{opt}"] = True
+        for opt in sev_options:
+            st.session_state[f"fk_sev_{opt}"] = True
+        st.session_state["fk_hours"] = (h_min, h_max)
+        st.session_state["fk_spike"] = 0.0
+        st.session_state["fk_hh_select"] = "All Households (200)"
+        st.rerun()
 
-    # Household search
-    hh_options = sorted(df["household_id"].unique())
-    sel_hh = st.sidebar.multiselect("Household IDs (leave blank = all)", hh_options, default=[])
+    # Pre-calculate category counts for display
+    risk_counts = df["risk_level"].value_counts().to_dict()
+    sev_counts = df["leak_severity"].value_counts().to_dict()
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("##### 📊 Dataset Info")
-    st.sidebar.caption(f"Total records loaded: **{len(df):,}**")
-    st.sidebar.caption(f"Date range: **{df['timestamp'].min().date()}** → **{df['timestamp'].max().date()}**")
+    # ── 1. RISK LEVEL CHECKBOXES (Flipkart/Amazon Facet) ──
+    st.sidebar.markdown('<div class="fk-section-header"><span>Risk Level</span></div>', unsafe_allow_html=True)
+    risk_icons = {
+        "Critical": "🔴",
+        "High Risk": "🟠",
+        "Moderate Risk": "🟡",
+        "Low Risk": "🟢",
+    }
+    sel_risk = []
+    for opt in risk_options:
+        key = f"fk_risk_{opt}"
+        if key not in st.session_state:
+            st.session_state[key] = True
+        count = risk_counts.get(opt, 0)
+        checked = st.sidebar.checkbox(
+            f"{risk_icons.get(opt, '•')} {opt} &nbsp;`{count:,}`",
+            value=st.session_state[key],
+            key=key
+        )
+        if checked:
+            sel_risk.append(opt)
 
-    # Apply filters
+    st.sidebar.markdown('<div class="fk-divider"></div>', unsafe_allow_html=True)
+
+    # ── 2. LEAK SEVERITY CHECKBOXES (Flipkart/Amazon Facet) ──
+    st.sidebar.markdown('<div class="fk-section-header"><span>Leak Severity</span></div>', unsafe_allow_html=True)
+    sev_icons = {
+        "Critical Leak": "🚨",
+        "High Risk": "⚠️",
+        "Moderate Risk": "⚡",
+        "Low Risk": "💧",
+        "Normal": "🔵",
+    }
+    sel_sev = []
+    for opt in sev_options:
+        key = f"fk_sev_{opt}"
+        if key not in st.session_state:
+            st.session_state[key] = True
+        count = sev_counts.get(opt, 0)
+        checked = st.sidebar.checkbox(
+            f"{sev_icons.get(opt, '•')} {opt} &nbsp;`{count:,}`",
+            value=st.session_state[key],
+            key=key
+        )
+        if checked:
+            sel_sev.append(opt)
+
+    st.sidebar.markdown('<div class="fk-divider"></div>', unsafe_allow_html=True)
+
+    # ── 3. TIME OF DAY (Flipkart/Amazon Range Slider) ──
+    def fmt_hour(h):
+        return f"{h:02d}:00 ({'AM' if h < 12 else 'PM'})"
+
+    if "fk_hours" not in st.session_state:
+        st.session_state["fk_hours"] = (h_min, h_max)
+
+    sel_hours = st.sidebar.slider(
+        "Time of Day",
+        h_min, h_max,
+        value=st.session_state["fk_hours"],
+        key="fk_hours",
+        label_visibility="collapsed",
+        help="Filter by hour of day. 00:00–05:00 indicate persistent nocturnal leaks."
+    )
+    st.sidebar.markdown(f"""
+    <div class="fk-section-header" style="margin-top:6px;">
+        <span>Time of Day</span>
+        <span style="font-size:10px; color:#878787; text-transform:none;">{fmt_hour(sel_hours[0])} – {fmt_hour(sel_hours[1])}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.sidebar.markdown('<div class="fk-divider"></div>', unsafe_allow_html=True)
+
+    # ── 4. SPIKE RATIO / ANOMALY THRESHOLD ──
+    if "fk_spike" not in st.session_state:
+        st.session_state["fk_spike"] = 0.0
+
+    spike_thresh = st.sidebar.slider(
+        "Min Spike Ratio",
+        0.0, float(df["spike_ratio"].max()),
+        value=st.session_state["fk_spike"],
+        step=0.1,
+        key="fk_spike",
+        label_visibility="collapsed",
+        help="Filters records where water usage spiked X× above baseline."
+    )
+    spike_badge = "Severe Anomaly (≥3×)" if spike_thresh >= 3.0 else "Anomaly Zone (≥2×)" if spike_thresh >= 2.0 else "Mild Spike (≥1×)" if spike_thresh >= 1.0 else "All Records"
+    spike_color = "#dc2626" if spike_thresh >= 3.0 else "#d97706" if spike_thresh >= 2.0 else "#059669" if spike_thresh >= 1.0 else "#878787"
+
+    st.sidebar.markdown(f"""
+    <div class="fk-section-header" style="margin-top:6px;">
+        <span>Min Spike Ratio</span>
+        <span style="font-size:10.5px; font-weight:600; color:{spike_color}; text-transform:none;">{spike_badge}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.sidebar.markdown('<div class="fk-divider"></div>', unsafe_allow_html=True)
+
+    # ── 5. HOUSEHOLD SEARCH (Clean Dropdown like Amazon/Flipkart) ──
+    st.sidebar.markdown('<div class="fk-section-header"><span>Household Meter</span></div>', unsafe_allow_html=True)
+    if "fk_hh_select" not in st.session_state:
+        st.session_state["fk_hh_select"] = "All Households (200)"
+
+    sel_hh = st.sidebar.selectbox(
+        "Household Meter",
+        hh_options,
+        index=hh_options.index(st.session_state["fk_hh_select"]) if st.session_state["fk_hh_select"] in hh_options else 0,
+        key="fk_hh_select",
+        label_visibility="collapsed"
+    )
+
+    st.sidebar.markdown('<div class="fk-divider"></div>', unsafe_allow_html=True)
+
+    # ── Apply filters to produce mask ──
     mask = (
         df["risk_level"].isin(sel_risk) &
         df["leak_severity"].isin(sel_sev) &
         df["hour"].between(*sel_hours) &
         (df["spike_ratio"] >= spike_thresh)
     )
-    if sel_hh:
-        mask &= df["household_id"].isin(sel_hh)
+    if sel_hh != "All Households (200)":
+        mask &= (df["household_id"] == sel_hh)
 
-    st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
-    st.sidebar.markdown("<div style='text-align: center; color: #4fc3f7; font-size: 0.8rem; background-color: #112240; padding:10px; border-radius:8px;'>🌊 Sentinel Water Intelligence<br>🟢 Core AI System Online</div>", unsafe_allow_html=True)
+    matched = mask.sum()
+    pct = (matched / len(df) * 100) if len(df) > 0 else 0
+    bar_color = "#10b981" if pct > 60 else "#f59e0b" if pct > 20 else "#ef4444"
+
+    # ── Flipkart / Amazon "Results / Coverage" Card ──
+    st.sidebar.markdown(f"""
+    <div style="background:#ffffff; border:1px solid #e0e0e0; border-radius:8px; padding:12px 14px; margin-top:8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+            <div style="font-size:11px; text-transform:uppercase; font-weight:700; color:#878787; letter-spacing:0.5px;">Results</div>
+            <div style="font-size:11px; font-weight:700; color:{bar_color};">{pct:.1f}% Match</div>
+        </div>
+        <div style="font-size:1.35rem; font-weight:800; color:#212121; font-family:'Inter',sans-serif; letter-spacing:-0.5px; line-height:1.1;">
+            {matched:,}
+        </div>
+        <div style="font-size:11px; color:#878787; margin-bottom:8px;">of {len(df):,} total readings</div>
+        <div style="background:#f0f0f0; border-radius:4px; height:4px; overflow:hidden;">
+            <div style="width:{min(pct,100):.0f}%; background:{bar_color}; height:100%; border-radius:4px; transition:width 0.3s ease;"></div>
+        </div>
+    </div>
+    <div style="font-size:11px; color:#878787; text-align:center; margin-top:8px; margin-bottom:6px;">
+        📅 {df['timestamp'].min().strftime('%d %b %Y')} → {df['timestamp'].max().strftime('%d %b %Y')}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── User Profile & Notification Bell (Reference UI style) ──
+    st.sidebar.markdown("""
+    <div style="margin-top:14px; padding:10px 8px; border-top:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg, #a855f7, #6366f1); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:0.8rem; box-shadow:0 3px 10px rgba(99,102,241,0.35);">
+                RA
+            </div>
+            <div>
+                <div style="font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:800; color:#1e1b4b;">Chief Engineer</div>
+                <div style="font-family:'Inter',sans-serif; font-size:0.65rem; color:#10b981; font-weight:700;">● IoT Grid Online</div>
+            </div>
+        </div>
+        <div style="position:relative; width:30px; height:30px; background:#f8fafc; border-radius:50%; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; font-size:0.85rem; cursor:pointer;" title="Notifications Active">
+            🔔
+            <span style="position:absolute; top:3px; right:3px; width:6px; height:6px; background:#ef4444; border-radius:50%; border:1px solid #fff;"></span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     return df[mask].copy()
 
@@ -265,70 +977,304 @@ def render_sidebar(df: pd.DataFrame):
 # PAGE 1 — SYSTEM OVERVIEW
 # ──────────────────────────────────────────────
 def page_overview(df: pd.DataFrame):
-    st.markdown('<div class="section-header">📊 System Overview</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Real-time smart water infrastructure monitoring summary</div>', unsafe_allow_html=True)
+    total_records = len(df)
+    total_households = df["household_id"].nunique() if total_records else 0
+    total_leaks = int(df["leak_flag_detected"].sum()) if total_records else 0
+    leak_pct = (total_leaks / total_records * 100) if total_records else 0
 
-    total_records    = len(df)
-    total_households = df["household_id"].nunique()
-    avg_usage        = df["water_usage_liters"].mean()
-    total_leaks      = df["leak_flag_detected"].sum()
-    high_risk_hh     = df[df["risk_level"].isin(["High Risk", "Critical"])]["household_id"].nunique()
-    critical_hh      = df[df["risk_level"] == "Critical"]["household_id"].nunique()
-    avg_spike        = df["spike_ratio"].mean()
-    leak_pct         = (total_leaks / total_records * 100) if total_records else 0
+    risk_counts = df["risk_level"].value_counts()
+    low_cnt = int(risk_counts.get("Low Risk", 0))
+    mod_cnt = int(risk_counts.get("Moderate Risk", 0))
+    high_cnt = int(risk_counts.get("High Risk", 0))
+    crit_cnt = int(risk_counts.get("Critical", 0))
 
-    cols = st.columns(5)
-    cards = [
-        ("Total Records",        f"{total_records:,}",       f"Filtered dataset",              ""),
-        ("Households",           f"{total_households:,}",    f"Unique smart meters",           ""),
-        ("Avg Water Usage",      f"{avg_usage:.1f} L",       f"Per reading",                   ""),
-        ("Leak Events",          f"{total_leaks:,}",         f"{leak_pct:.1f}% of records",    "danger"),
-        ("High-Risk Households", f"{high_risk_hh:,}",        f"{critical_hh} critical",        "warning"),
-    ]
-    for col, (label, value, delta, cls) in zip(cols, cards):
-        with col:
-            st.markdown(f"""
-            <div class="metric-card {cls}">
-                <div class="label">{label}</div>
-                <div class="value">{value}</div>
-                <div class="delta">{delta}</div>
-            </div>""", unsafe_allow_html=True)
+    low_pct = (low_cnt / total_records * 100) if total_records else 0
+    mod_pct = (mod_cnt / total_records * 100) if total_records else 0
+    high_pct = (high_cnt / total_records * 100) if total_records else 0
+    crit_pct = (crit_cnt / total_records * 100) if total_records else 0
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    avg_usage = df["water_usage_liters"].mean() if total_records else 0
+    total_liters = int(df["water_usage_liters"].sum()) if total_records else 0
+    avg_spike = df["spike_ratio"].mean() if total_records else 1.0
 
-    # ── Secondary KPI row ──
-    c1, c2, c3 = st.columns(3)
+    # Diurnal / Time breakdown
+    if total_records:
+        night_leaks = len(df[(df["leak_flag_detected"] == 1) & (df["hour"].between(0, 5))])
+        morning_leaks = len(df[(df["leak_flag_detected"] == 1) & (df["hour"].between(6, 12))])
+        evening_leaks = max(0, total_leaks - night_leaks - morning_leaks)
+    else:
+        night_leaks = morning_leaks = evening_leaks = 0
 
-    with c1:
-        risk_counts = df["risk_level"].value_counts()
-        fig = px.bar(
-            x=risk_counts.index, y=risk_counts.values,
-            color=risk_counts.index,
-            color_discrete_map=COLOR_MAP_RISK,
-            labels={"x": "Risk Level", "y": "Records"},
+    night_pct = (night_leaks / total_leaks * 100) if total_leaks else 0
+    morning_pct = (morning_leaks / total_leaks * 100) if total_leaks else 0
+    evening_pct = (evening_leaks / total_leaks * 100) if total_leaks else 0
+
+    # Household / Network Coverage
+    coverage_pct = min(100, int((total_households / 200.0) * 100)) if total_households else 0
+
+    # Estimated Water Loss cost and peak flow
+    leak_liters = df[df["leak_flag_detected"] == 1]["water_usage_liters"].sum() if total_records else 0
+    est_loss_cost = leak_liters * 0.28  # financial telemetry estimate
+    peak_flow = df["water_usage_liters"].max() if total_records else 0
+
+    # Top households by leak incidents for the mini table
+    top_hh_rows = []
+    if total_records:
+        top_hh = (
+            df[df["leak_flag_detected"] == 1]
+            .groupby("household_id")
+            .agg(events=("leak_flag_detected", "count"), total_l=("water_usage_liters", "sum"))
+            .sort_values(by="events", ascending=False)
+            .head(3)
+            .reset_index()
         )
-        apply_theme(fig, "Risk Level Distribution", 300)
-        st.plotly_chart(fig, use_container_width=True)
+        for _, r in top_hh.iterrows():
+            top_hh_rows.append(
+                f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+                f'<span style="font-weight:600; color:#334155;">{str(r["household_id"]).replace("_", " ")}</span>'
+                f'<span style="color:#64748b;">{int(r["events"]):,} leaks</span>'
+                f'<span style="font-weight:700; color:#1e1b4b;">{int(r["total_l"]):,} L</span>'
+                f'<span style="color:#ef4444; font-weight:700;">▲</span>'
+                f'</div>'
+            )
+    while len(top_hh_rows) < 3:
+        idx = len(top_hh_rows) + 1
+        top_hh_rows.append(
+            f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+            f'<span style="font-weight:600; color:#334155;">Zone Meter {idx}</span>'
+            f'<span style="color:#64748b;">0 leaks</span>'
+            f'<span style="font-weight:700; color:#1e1b4b;">0 L</span>'
+            f'<span style="color:#10b981; font-weight:700;">●</span>'
+            f'</div>'
+        )
 
-    with c2:
-        spike_bins = pd.cut(df["spike_ratio"], bins=[0, 1, 2, 3, 4, 99],
-                            labels=["<1", "1–2", "2–3", "3–4", ">4"])
-        spike_dist = spike_bins.value_counts().sort_index()
-        fig2 = px.bar(x=spike_dist.index.astype(str), y=spike_dist.values,
-                      color=spike_dist.index.astype(str),
-                      color_discrete_sequence=px.colors.sequential.Blues_r,
-                      labels={"x": "Spike Ratio Bucket", "y": "Records"})
-        apply_theme(fig2, "Spike Ratio Distribution", 300)
-        st.plotly_chart(fig2, use_container_width=True)
+    # Dynamic heights for the 16 Equalizer bars based on 16 sampled/hourly bins
+    if total_records:
+        hourly_means = df.groupby("hour")["water_usage_liters"].mean()
+        max_h = hourly_means.max() if len(hourly_means) and hourly_means.max() > 0 else 1
+        bar_heights = [
+            max(16, min(62, int((hourly_means.get(int(h * 23 / 15), avg_usage) / max_h) * 60)))
+            for h in range(16)
+        ]
+    else:
+        bar_heights = [20] * 16
 
-    with c3:
+    # ══════════════════════════════════════════════════════════════
+    # UPPER CANVAS: Floating Left (Stats) + Center (Globe) + Right (Engaged & Forecast)
+    # ══════════════════════════════════════════════════════════════
+    top_col_left, top_col_mid, top_col_right = st.columns([3.6, 4.4, 4.0])
+
+    with top_col_left:
+        html_top_left = (
+            f'<div style="max-width:315px; padding-top:4px;">'
+            f'<div style="font-size:1.75rem; font-weight:800; color:#1e1b4b; letter-spacing:-0.5px; margin-bottom:14px; font-family:\'Inter\',sans-serif;">General statistics</div>'
+            f'<div style="display:flex; align-items:center; gap:8px;">'
+            f'<span style="font-size:0.85rem; font-weight:700; color:#1e1b4b; font-family:\'Inter\',sans-serif;">Filtered telemetry</span>'
+            f'<span style="font-size:0.68rem; color:#64748b; font-weight:700; background:rgba(255,255,255,0.85); border:1px solid #e2e8f0; padding:2px 6px; border-radius:6px; cursor:pointer;">DETAIL &rsaquo;</span>'
+            f'</div>'
+            f'<div style="font-size:3.2rem; font-weight:900; color:#1e1b4b; letter-spacing:-1.5px; line-height:1.05; margin:6px 0 16px 0; font-family:\'Inter\',sans-serif;">{total_records:,}</div>'
+            f'<div style="font-size:0.92rem; font-weight:700; color:#1e1b4b; margin-bottom:8px; font-family:\'Inter\',sans-serif;">Current activity</div>'
+            f'<div style="height:8px; border-radius:4px; display:flex; gap:3px; margin-bottom:20px; width:100%;">'
+            f'<div style="width:{max(3, low_pct):.1f}%; background:#10b981; border-radius:4px;" title="Low Risk Normal: {low_pct:.1f}%"></div>'
+            f'<div style="width:{max(3, mod_pct):.1f}%; background:#8b5cf6; border-radius:4px;" title="Moderate Elevated: {mod_pct:.1f}%"></div>'
+            f'<div style="width:{max(3, high_pct):.1f}%; background:#f43f5e; border-radius:4px;" title="High Risk Anomaly: {high_pct:.1f}%"></div>'
+            f'<div style="width:{max(3, crit_pct):.1f}%; background:#f59e0b; border-radius:4px;" title="Critical Hazard: {crit_pct:.1f}%"></div>'
+            f'</div>'
+            f'<div style="display:flex; flex-direction:column; gap:10px; width:100%;">'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; font-family:\'Inter\',sans-serif;">'
+            f'<div><span style="display:inline-block; width:8px; height:8px; background:#10b981; border-radius:50%; margin-right:8px;"></span><span style="font-weight:600; color:#334155;">Low Risk (Normal)</span></div>'
+            f'<div style="display:flex; gap:14px;"><span style="font-weight:700; color:#1e1b4b;">{low_cnt:,}</span><span style="font-weight:600; color:#64748b;">{low_pct:.1f}%</span></div>'
+            f'</div>'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; font-family:\'Inter\',sans-serif;">'
+            f'<div><span style="display:inline-block; width:8px; height:8px; background:#8b5cf6; border-radius:50%; margin-right:8px;"></span><span style="font-weight:600; color:#334155;">Moderate (Elevated)</span></div>'
+            f'<div style="display:flex; gap:14px;"><span style="font-weight:700; color:#1e1b4b;">{mod_cnt:,}</span><span style="font-weight:600; color:#64748b;">{mod_pct:.1f}%</span></div>'
+            f'</div>'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; font-family:\'Inter\',sans-serif;">'
+            f'<div><span style="display:inline-block; width:8px; height:8px; background:#f43f5e; border-radius:50%; margin-right:8px;"></span><span style="font-weight:600; color:#334155;">High Risk (Anomaly)</span></div>'
+            f'<div style="display:flex; gap:14px;"><span style="font-weight:700; color:#1e1b4b;">{high_cnt:,}</span><span style="font-weight:600; color:#64748b;">{high_pct:.1f}%</span></div>'
+            f'</div>'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; font-family:\'Inter\',sans-serif;">'
+            f'<div><span style="display:inline-block; width:8px; height:8px; background:#f59e0b; border-radius:50%; margin-right:8px;"></span><span style="font-weight:600; color:#334155;">Critical (Hazard)</span></div>'
+            f'<div style="display:flex; gap:14px;"><span style="font-weight:700; color:#1e1b4b;">{crit_cnt:,}</span><span style="font-weight:600; color:#64748b;">{crit_pct:.1f}%</span></div>'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(html_top_left, unsafe_allow_html=True)
+
+    with top_col_mid:
+        st.markdown('<div style="min-height:280px;"></div>', unsafe_allow_html=True)
+
+    with top_col_right:
+        html_top_right = (
+            f'<div style="padding-top:4px;">'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
+            f'<div style="font-size:0.95rem; font-weight:800; color:#1e1b4b; font-family:\'Inter\',sans-serif;">Most engaged</div>'
+            f'<div style="color:#94a3b8; font-size:0.85rem; letter-spacing:1px; cursor:pointer;">&bull;&bull;&bull; &#10549;</div>'
+            f'</div>'
+            f'<div class="ref-pill-card" style="margin-bottom:10px;">'
+            f'<div class="ref-icon-box ref-icon-purple" style="font-size:1.15rem;">👥</div>'
+            f'<div style="flex-grow:1;">'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Monitored Smart Meters</div>'
+            f'<div style="font-size:1.3rem; font-weight:800; color:#1e1b4b; line-height:1.1;">{total_households:,} <span style="font-size:0.72rem; color:#10b981; font-weight:700; margin-left:4px;">▲ {coverage_pct}%</span></div>'
+            f'</div>'
+            f'</div>'
+            f'<div class="ref-pill-card" style="margin-bottom:18px;">'
+            f'<div class="ref-icon-box ref-icon-cyan" style="font-size:1.15rem;">💧</div>'
+            f'<div style="flex-grow:1;">'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Active Leak Anomalies</div>'
+            f'<div style="font-size:1.3rem; font-weight:800; color:#1e1b4b; line-height:1.1;">{total_leaks:,} <span style="font-size:0.72rem; color:#ef4444; font-weight:700; margin-left:4px;">{leak_pct:.1f}% rate</span></div>'
+            f'</div>'
+            f'</div>'
+            f'<div style="font-size:0.92rem; font-weight:800; color:#1e1b4b; margin-bottom:10px; font-family:\'Inter\',sans-serif;">Forecast</div>'
+            f'<div style="margin-bottom:12px;">'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Estimated Water Loss</div>'
+            f'<div style="font-size:1.45rem; font-weight:800; color:#1e1b4b;">${est_loss_cost:,.0f} <span style="font-size:0.75rem; color:#ef4444; font-weight:700; margin-left:4px;">▲ {leak_pct:.1f}%</span></div>'
+            f'<div style="font-size:0.68rem; color:#94a3b8; font-weight:500;">Based on {leak_liters:,.0f} L excess leak flow</div>'
+            f'</div>'
+            f'<div>'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Peak Flow Observed</div>'
+            f'<div style="font-size:1.45rem; font-weight:800; color:#1e1b4b;">{peak_flow:.1f} L <span style="font-size:0.75rem; color:#10b981; font-weight:700; margin-left:4px;">▲ {avg_spike:.2f}×</span></div>'
+            f'<div style="font-size:0.68rem; color:#94a3b8; font-weight:500;">Max rate across active households</div>'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(html_top_right, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:30px;'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════
+    # LOWER ROW: FLOATING CARDS (Bottom Left, Bottom Center, Bottom Right)
+    # ══════════════════════════════════════════════════════════════
+    b_left, b_mid, b_right = st.columns([3.8, 4.2, 4.0])
+
+    with b_left:
+        # Equalizer Bar Chart Card
+        bars_html = "".join([
+            f'<div style="width:4.5px; height:{bar_heights[i]}px; background:{"#818cf8" if i % 2 == 0 else "#f43f5e"}; border-radius:4px;"></div>'
+            for i in range(16)
+        ])
+        rows_html = "".join(top_hh_rows)
+
+        html_b_left = (
+            f'<div class="glass-card" style="padding:20px 22px; min-height:290px;">'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Average Flow Volume</div>'
+            f'<div style="font-size:1.55rem; font-weight:800; color:#1e1b4b; line-height:1.1; margin-top:2px;">{avg_usage:.1f} L <span style="font-size:0.75rem; color:#10b981; font-weight:700; margin-left:4px;">▲ {avg_spike:.2f}×</span></div>'
+            f'<div style="font-size:0.68rem; color:#94a3b8; margin-bottom:14px;">Telemetry average liters per cycle</div>'
+            f'<div style="display:flex; align-items:flex-end; justify-content:space-between; height:65px; padding:4px 0; margin-bottom:18px;">'
+            f'{bars_html}'
+            f'</div>'
+            f'<div style="font-size:0.75rem; color:#475569; display:flex; flex-direction:column; gap:6px; border-top:1px dashed #e2e8f0; padding-top:10px;">'
+            f'{rows_html}'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(html_b_left, unsafe_allow_html=True)
+
+    with b_mid:
+        # Stacked Center Cards: Trend Card + Coverage Card
+        html_trend_top = (
+            f'<div class="glass-card" style="padding:14px 18px; margin-bottom:12px;">'
+            f'<div style="display:flex; justify-content:space-between; align-items:baseline;">'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Leak Trend</div>'
+            f'<div style="font-size:1.1rem; font-weight:800; color:#1e1b4b;">{total_leaks:,}</div>'
+            f'</div>'
+            f'<div style="font-size:0.65rem; color:#94a3b8; margin-bottom:2px;">Daily incident telemetry vs 7-day trend</div>'
+        )
+        st.markdown(html_trend_top, unsafe_allow_html=True)
+
+        # Plotly Spline Chart dynamically populated from filtered df
         daily_leaks = df[df["leak_flag_detected"] == 1].groupby("date").size().reset_index(name="leaks")
-        fig3 = px.area(daily_leaks, x="date", y="leaks",
-                       color_discrete_sequence=["#ef5350"],
-                       labels={"date": "Date", "leaks": "Leak Events"})
-        fig3.update_traces(fillcolor="rgba(239,83,80,0.2)")
-        apply_theme(fig3, "Daily Leak Event Trend", 300)
-        st.plotly_chart(fig3, use_container_width=True)
+        fig_spline = go.Figure()
+        if len(daily_leaks) > 0:
+            daily_leaks["rolling"] = daily_leaks["leaks"].rolling(7, min_periods=1).mean()
+            fig_spline.add_trace(go.Scatter(
+                x=daily_leaks["date"], y=daily_leaks["rolling"], mode="lines",
+                line=dict(color="#6366f1", width=2.6, shape="spline"),
+                showlegend=False
+            ))
+            fig_spline.add_trace(go.Scatter(
+                x=daily_leaks["date"], y=daily_leaks["leaks"], mode="lines",
+                line=dict(color="#f59e0b", width=2.4, shape="spline"),
+                showlegend=False
+            ))
+        else:
+            fig_spline.add_trace(go.Scatter(
+                x=[0, 1, 2], y=[0, 0, 0], mode="lines",
+                line=dict(color="#6366f1", width=2), showlegend=False
+            ))
+
+        fig_spline.update_layout(
+            height=65,
+            margin=dict(l=0, r=0, t=2, b=2),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        )
+        st.plotly_chart(fig_spline, use_container_width=True, config={"displayModeBar": False})
+
+        html_trend_bot = "</div>"
+        st.markdown(html_trend_bot, unsafe_allow_html=True)
+
+        # Total Coverage Card with circular ring
+        html_coverage = (
+            f'<div class="glass-card" style="padding:14px 18px; display:flex; align-items:center; gap:16px;">'
+            f'<div style="position:relative; width:54px; height:54px; flex-shrink:0;">'
+            f'<svg width="54" height="54" viewBox="0 0 36 36">'
+            f'<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e0e7ff" stroke-width="3"/>'
+            f'<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#6366f1" stroke-width="3" stroke-dasharray="{coverage_pct}, 100"/>'
+            f'<text x="18" y="21" font-size="8.5" font-weight="800" fill="#1e1b4b" text-anchor="middle" font-family="\'Inter\', sans-serif">{coverage_pct}%</text>'
+            f'</svg>'
+            f'</div>'
+            f'<div>'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Total network volume</div>'
+            f'<div style="font-size:1.2rem; font-weight:800; color:#1e1b4b; line-height:1.1;">{total_liters:,} L</div>'
+            f'<div style="font-size:0.65rem; color:#94a3b8;">Across {total_households:,} monitored smart meters</div>'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(html_coverage, unsafe_allow_html=True)
+
+    with b_right:
+        # Time Statistic Card
+        html_b_right = (
+            f'<div class="glass-card" style="padding:20px 22px; min-height:290px;">'
+            f'<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Time Statistic</div>'
+            f'<div style="font-size:1.55rem; font-weight:800; color:#1e1b4b; line-height:1.1; margin-top:2px;">{total_leaks:,} <span style="font-size:0.75rem; color:#ef4444; font-weight:700; margin-left:4px;">▲ {night_pct:.1f}%</span></div>'
+            f'<div style="font-size:0.68rem; color:#94a3b8; margin-bottom:18px;">Breakdown by operational window</div>'
+            f'<div style="margin-bottom:14px;">'
+            f'<div style="display:flex; justify-content:space-between; font-size:0.72rem; font-weight:600; margin-bottom:4px;">'
+            f'<span style="color:#64748b;">Night (0–5 AM) — Hazard</span>'
+            f'<span style="color:#1e1b4b; font-weight:700;">{night_leaks:,} ({night_pct:.1f}%)</span>'
+            f'</div>'
+            f'<div style="height:5px; background:#e0e7ff; border-radius:3px; overflow:hidden;">'
+            f'<div style="width:{night_pct:.1f}%; background:#6366f1; height:100%; border-radius:3px;"></div>'
+            f'</div>'
+            f'</div>'
+            f'<div style="margin-bottom:14px;">'
+            f'<div style="display:flex; justify-content:space-between; font-size:0.72rem; font-weight:600; margin-bottom:4px;">'
+            f'<span style="color:#64748b;">Morning (6 AM–12 PM)</span>'
+            f'<span style="color:#1e1b4b; font-weight:700;">{morning_leaks:,} ({morning_pct:.1f}%)</span>'
+            f'</div>'
+            f'<div style="height:5px; background:#fee2e2; border-radius:3px; overflow:hidden;">'
+            f'<div style="width:{morning_pct:.1f}%; background:#f43f5e; height:100%; border-radius:3px;"></div>'
+            f'</div>'
+            f'</div>'
+            f'<div>'
+            f'<div style="display:flex; justify-content:space-between; font-size:0.72rem; font-weight:600; margin-bottom:4px;">'
+            f'<span style="color:#64748b;">Evening (12 PM–11 PM)</span>'
+            f'<span style="color:#1e1b4b; font-weight:700;">{evening_leaks:,} ({evening_pct:.1f}%)</span>'
+            f'</div>'
+            f'<div style="height:5px; background:#fef3c7; border-radius:3px; overflow:hidden;">'
+            f'<div style="width:{evening_pct:.1f}%; background:#f59e0b; height:100%; border-radius:3px;"></div>'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(html_b_right, unsafe_allow_html=True)
+
+
 
 
 # ──────────────────────────────────────────────
@@ -844,14 +1790,14 @@ def page_ml_prediction(df: pd.DataFrame):
                         'bar': {'color': prob_color},
                         'bgcolor': "rgba(0,0,0,0)",
                         'borderwidth': 2,
-                        'bordercolor': "#1e3a5f",
+                        'bordercolor': "#e2e8f0",
                         'steps': [
                             {'range': [0, 30], 'color': 'rgba(102, 187, 106, 0.15)'},
                             {'range': [30, 70], 'color': 'rgba(255, 167, 38, 0.15)'},
                             {'range': [70, 100], 'color': 'rgba(239, 83, 80, 0.15)'}],
                     }
                 ))
-                fig.update_layout(paper_bgcolor="#0d1526", plot_bgcolor="#0d1526", font_color="#c8d8f0",
+                fig.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", font_color="#334155",
                                   margin=dict(t=60, b=10, l=30, r=30), height=270)
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -895,12 +1841,12 @@ def page_ml_prediction(df: pd.DataFrame):
             fig2.add_trace(go.Bar(name='⚡ XGBoost', x=imp_df['Feature'], y=imp_df['XGBoost'],
                                   marker_color='#ab47bc', opacity=0.85))
             fig2.update_layout(barmode='group',
-                               paper_bgcolor="#0d1526", plot_bgcolor="#0d1526", font_color="#c8d8f0",
+                               paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", font_color="#334155",
                                title=dict(text="Feature Importance — RF vs XGBoost", font=dict(color="#4fc3f7", size=15)),
                                margin=dict(t=50, b=40, l=20, r=20), height=300,
-                               legend=dict(bgcolor="rgba(13,21,38,0.8)", bordercolor="#1e3a5f", borderwidth=1))
-            fig2.update_xaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
-            fig2.update_yaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4", title_text="Importance")
+                               legend=dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#e2e8f0", borderwidth=1))
+            fig2.update_xaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
+            fig2.update_yaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8", title_text="Importance")
             st.plotly_chart(fig2, use_container_width=True)
         elif len(models_info) == 1:
             imp = models_info[0][3].feature_importances_
@@ -908,7 +1854,7 @@ def page_ml_prediction(df: pd.DataFrame):
             fig2 = px.bar(imp_df, x='Importance', y='Feature', orientation='h',
                          color='Importance', color_continuous_scale='Blues_r',
                          labels={'Importance': 'Influence', 'Feature': 'Driver'})
-            fig2.update_layout(paper_bgcolor="#0d1526", plot_bgcolor="#0d1526", font_color="#c8d8f0",
+            fig2.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", font_color="#334155",
                                title=dict(text="Key Risk Drivers (Feature Importance)", font=dict(color="#4fc3f7")),
                                margin=dict(t=50, b=0, l=20, r=20), height=250)
             fig2.update_xaxes(showgrid=False)
@@ -949,14 +1895,14 @@ def page_model_comparison(df: pd.DataFrame):
     with algo_c1:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #0d2137 0%, #0f2a47 100%);
-                    border: 1px solid #1e3a5f; border-radius: 14px; padding: 22px;
+                    border: 1px solid #e2e8f0; border-radius: 14px; padding: 22px;
                     border-top: 3px solid #4fc3f7;">
             <h3 style="color:#4fc3f7; margin-top:0; font-size:1.15rem;">🌲 Random Forest</h3>
             <p style="color:#90a4c4; font-size:0.88rem; line-height:1.6;">
                 An <b>ensemble</b> of multiple decision trees, each trained on a random subset of the data.
                 Final prediction is made by <b>majority vote</b> (classification) across all trees.
             </p>
-            <hr style="border-color:#1e3a5f;">
+            <hr style="border-color:#e2e8f0;">
             <p style="color:#c8ddf2; font-size:0.83rem; margin-bottom:4px;"><b>✅ Strengths:</b></p>
             <ul style="color:#90a4c4; font-size:0.82rem; margin-top:0;">
                 <li>Resistant to overfitting due to bagging</li>
@@ -1024,7 +1970,7 @@ def page_model_comparison(df: pd.DataFrame):
                         <div style="font-size:0.65rem; color:#4fc3f7; text-transform:uppercase; letter-spacing:1px;">RF</div>
                         <div style="font-size:1.5rem; font-weight:800; color:{rf_color};">{rv:.3f}</div>
                     </div>
-                    <div style="border-left:1px solid #1e3a5f;"></div>
+                    <div style="border-left:1px solid #e2e8f0;"></div>
                     <div>
                         <div style="font-size:0.65rem; color:#ab47bc; text-transform:uppercase; letter-spacing:1px;">XGB</div>
                         <div style="font-size:1.5rem; font-weight:800; color:{xgb_color};">{xv:.3f}</div>
@@ -1074,12 +2020,12 @@ def page_model_comparison(df: pd.DataFrame):
             xaxis_title="False Positive Rate",
             yaxis_title="True Positive Rate",
             height=380, margin=dict(l=40, r=20, t=40, b=40),
-            legend=dict(bgcolor="rgba(13,21,38,0.8)", bordercolor="#1e3a5f", borderwidth=1,
+            legend=dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#e2e8f0", borderwidth=1,
                        font=dict(color="#c8d8f0"), x=0.55, y=0.05),
             **CHART_THEME,
         )
-        fig_roc.update_xaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
-        fig_roc.update_yaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
+        fig_roc.update_xaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
+        fig_roc.update_yaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
         st.plotly_chart(fig_roc, use_container_width=True)
 
         st.markdown("""<div class="insight-box" style="font-size:0.82rem;">
@@ -1147,11 +2093,11 @@ def page_model_comparison(df: pd.DataFrame):
         margin=dict(l=20, r=20, t=50, b=40),
         title=dict(text="Feature Influence — Which Behaviors Drive Risk?", font=dict(color="#4fc3f7", size=14)),
         xaxis_title="Importance Score",
-        legend=dict(bgcolor="rgba(13,21,38,0.8)", bordercolor="#1e3a5f", borderwidth=1),
+        legend=dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#e2e8f0", borderwidth=1),
         **CHART_THEME,
     )
-    fig_imp.update_xaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
-    fig_imp.update_yaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
+    fig_imp.update_xaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
+    fig_imp.update_yaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
     st.plotly_chart(fig_imp, use_container_width=True)
 
     # Feature descriptions
@@ -1353,8 +2299,8 @@ def page_insights(df: pd.DataFrame):
     fig3.update_layout(height=360, paper_bgcolor="#0d1526", plot_bgcolor="#0d1526",
                        font_color="#c8d8f0", title=dict(text="Monthly Usage vs Leak Events", font=dict(color="#4fc3f7")),
                        legend=dict(bgcolor="rgba(13,21,38,0.8)", bordercolor="#1e3a5f"))
-    fig3.update_xaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
-    fig3.update_yaxes(gridcolor="#1a2f4a", tickfont_color="#90a4c4")
+    fig3.update_xaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
+    fig3.update_yaxes(gridcolor="#f1f5f9", tickfont_color="#94a3b8")
     st.plotly_chart(fig3, use_container_width=True)
 
 
@@ -1477,18 +2423,84 @@ def page_methodology(df: pd.DataFrame):
 # MAIN APP
 # ──────────────────────────────────────────────
 def main():
-    # Header banner
+    # ── Clean White Header Banner ──
     st.markdown("""
-    <div style="background:linear-gradient(90deg,#0d1f3c,#0a3060,#0d1f3c);
-                padding:22px 32px;border-radius:14px;margin-bottom:8px;
-                border:1px solid #1e3a5f;">
-        <h1 style="color:#4fc3f7;margin:0;font-size:1.9rem;font-weight:800;">
-            💧 Smart Water Leakage Detection System
-        </h1>
-        <p style="color:#90a4c4;margin:6px 0 0;font-size:0.92rem;">
-            Big Data Analytics Platform · Smart City Infrastructure Monitoring
-        </p>
-    </div>
+    <style>
+    @keyframes headerShimmer {
+        0%   { background-position: -200% 0; }
+        100% { background-position:  200% 0; }
+    }
+    @keyframes statusPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+        70%       { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+    }
+    .header-banner {
+        background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 60%, #f8fafc 100%);
+        padding: 26px 34px 22px;
+        border-radius: 20px;
+        margin-bottom: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 24px rgba(37,99,235,0.07), 0 1px 3px rgba(0,0,0,0.04);
+        position: relative;
+        overflow: hidden;
+    }
+    .header-banner::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #0ea5e9, #7c3aed, #2563eb);
+        background-size: 200% 100%;
+        animation: headerShimmer 4s linear infinite;
+    }
+    .header-title {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.85rem;
+        font-weight: 800;
+        margin: 0 0 5px 0;
+        background: linear-gradient(90deg, #1e40af, #2563eb, #0ea5e9);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.5px;
+        line-height: 1.25;
+    }
+    .header-subtitle {
+        font-family: 'Inter', sans-serif;
+        color: #94a3b8;
+        margin: 0;
+        font-size: 0.87rem;
+        font-weight: 400;
+    }
+    .status-dot {
+        display: inline-block;
+        width: 8px; height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        margin-right: 6px;
+        animation: statusPulse 2s ease-in-out infinite;
+    }
+    .status-text {
+        font-size: 0.78rem;
+        color: #059669;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+    }
+    .header-tags { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .header-tag {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        padding: 4px 12px;
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+        background: #f8fafc;
+        transition: all 0.2s ease;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
     # Load data
@@ -1497,23 +2509,29 @@ def main():
     # Sidebar filters → returns filtered dataframe
     filtered_df = render_sidebar(df)
 
-    # Navigation
+    # ── Navigation ──
     pages = {
-        "📊 System Overview":           page_overview,
-        "🔴 Leakage Severity Analysis": page_severity,
-        "🏠 Household Risk Intelligence": page_risk,
-        "💧 Water Consumption Behavior": page_consumption,
-        "⚠️ Abnormal Pattern Detection": page_anomalies,
-        "🔬 Household Explorer":         page_explorer,
-        "🤖 ML Risk Prediction":         page_ml_prediction,
-        "📊 Model Comparison (RF vs XGB)": page_model_comparison,
-        "🧠 Smart Insights Panel":       page_insights,
-        "🗃️ Data Explorer":             page_data,
-        "📖 Methodology & Formulas":     page_methodology,
+        "📊 System Overview":              page_overview,
+        "🔴 Leakage Severity Analysis":    page_severity,
+        "🏠 Household Risk Intelligence":  page_risk,
+        "💧 Water Consumption Behavior":   page_consumption,
+        "⚠️ Abnormal Pattern Detection":   page_anomalies,
+        "🔬 Household Explorer":           page_explorer,
+        "🤖 ML Risk Prediction":           page_ml_prediction,
+        "📈 Model Comparison (RF vs XGB)": page_model_comparison,
+        "🧠 Smart Insights Panel":         page_insights,
+        "🗃️ Data Explorer":               page_data,
+        "📖 Methodology & Formulas":       page_methodology,
     }
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📑 Navigation")
+    st.sidebar.markdown("""
+    <div style="height:1px; background:linear-gradient(90deg, #e2e8f0, transparent);
+                margin: 8px 4px 14px 4px;"></div>
+    <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8;
+                font-family:'Inter',sans-serif; font-weight:700; padding: 0 4px; margin-bottom:6px;">
+        📑 Navigation
+    </div>
+    """, unsafe_allow_html=True)
     selected_page = st.sidebar.radio("Navigate to", list(pages.keys()), label_visibility="collapsed")
 
     # Warn if filters remove too much data
@@ -1521,17 +2539,57 @@ def main():
         st.error("⚠️ No records match the current filters. Please adjust the sidebar filters.")
         return
 
+    # Header banner only on sub-pages (System Overview uses clean reference layout)
+    if selected_page != "📊 System Overview":
+        st.markdown("""
+        <div class="header-banner">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h1 class="header-title">💧 Smart Water Leakage Detection</h1>
+                    <p class="header-subtitle">Big Data Analytics Platform &nbsp;·&nbsp; Smart City Infrastructure Monitoring</p>
+                    <div class="header-tags">
+                        <span class="header-tag">🔥 Apache Spark</span>
+                        <span class="header-tag">🤖 ML Ensemble</span>
+                        <span class="header-tag">📊 4.32M+ Records</span>
+                        <span class="header-tag">🏠 1,000 Households</span>
+                    </div>
+                </div>
+                <div style="text-align:right; padding-top:6px;">
+                    <div><span class="status-dot"></span><span class="status-text">System Online</span></div>
+                    <div style="font-size:0.7rem; color:#cbd5e1; margin-top:5px; font-family:'Inter',sans-serif;">
+                        Real-Time Monitoring Active
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     pages[selected_page](filtered_df)
 
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        '<p style="text-align:center;color:#3a5a80;font-size:0.78rem;">'
-        'Smart Water Leakage Detection · Big Data Analytics Platform · '
-        'Built with Apache Spark + Streamlit + Plotly</p>',
-        unsafe_allow_html=True,
-    )
+    # ── Clean White Footer ──
+    st.markdown("""
+    <div style="margin-top: 3rem; padding: 18px 24px;
+                background: #ffffff;
+                border-radius: 14px; border: 1px solid #e2e8f0;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+                display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.1rem;">💧</span>
+            <span style="font-family:'Inter',sans-serif; font-size:0.82rem; color:#475569; font-weight:600;">
+                Smart Water Leakage Detection System
+            </span>
+            <span style="color:#e2e8f0; margin: 0 4px;">·</span>
+            <span style="font-family:'Inter',sans-serif; font-size:0.8rem; color:#94a3b8;">
+                Big Data Analytics Platform
+            </span>
+        </div>
+        <div style="font-family:'Inter',sans-serif; font-size:0.72rem; color:#cbd5e1;">
+            Apache Spark · Streamlit · Plotly · scikit-learn · XGBoost
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
     main()
+
